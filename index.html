@@ -141,8 +141,96 @@
     .entry{grid-template-columns:1fr 1fr; row-gap:6px;}
     .entry .col-acoes{grid-column:1/-1; display:flex; gap:10px; margin-top:6px;}
   }
+  .entry:last-child{border-bottom:none;}
   .entry.quitado{opacity:0.55;}
   .entry.atrasado{background:rgba(156,43,31,0.06);}
+
+  /* Grupo por pessoa: todos os empréstimos da mesma pessoa ficam empilhados num cartão */
+  .grupo{
+    background:rgba(255,255,255,0.28);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:0 10px 2px;
+    margin-bottom:18px;
+  }
+  .grupo-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+    padding:12px 4px 8px;
+    border-bottom:2px solid var(--ink);
+  }
+  .grupo-head .gn{font-family:'Fraunces',serif;font-weight:700;font-size:1.15rem;color:var(--ledger-green-2);}
+  .grupo-head .gq{font-family:'Space Mono',monospace;font-size:0.68rem;color:var(--ink-soft);margin-left:8px;font-weight:400;}
+  .grupo-head .gt{font-family:'Space Mono',monospace;font-weight:700;font-size:0.95rem;color:var(--debt-red);white-space:nowrap;}
+  .grupo-head .gt.ok{color:var(--paid-green);}
+
+  /* Parcelas */
+  .parc-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    margin-top:6px;
+    border:1.5px solid var(--ledger-green);
+    background:var(--paper-2);
+    color:var(--ledger-green-2);
+    font-family:'Space Mono',monospace;
+    font-size:0.7rem;
+    font-weight:700;
+    padding:3px 7px;
+    border-radius:3px;
+    cursor:pointer;
+  }
+  .parc-chip.aberto{background:var(--ledger-green);color:var(--paper);}
+  .parcelas-box{
+    grid-column:1/-1;
+    display:none;
+    background:var(--paper-2);
+    border:1px dashed var(--line);
+    border-radius:4px;
+    padding:8px 10px;
+    font-family:'Space Mono',monospace;
+    font-size:0.78rem;
+  }
+  .parcelas-box.open{display:block;}
+  .parcelas-box .titulo{font-family:'Inter',sans-serif;font-size:0.65rem;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin-bottom:6px;font-weight:600;}
+  .parcelas-box .linha{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid var(--line);}
+  .parcelas-box .linha:first-of-type{border-top:none;}
+  .parcelas-box .linha.prox{font-weight:700;color:var(--ledger-green-2);}
+  .parcelas-box .linha.venc{color:var(--debt-red);font-weight:700;}
+
+  .field.parcelado{grid-column:1/-1;}
+  .check-linha{display:flex;align-items:center;gap:9px;font-size:0.9rem;font-weight:600;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--ink);}
+  .check-linha input{width:20px;height:20px;accent-color:var(--ledger-green);}
+  .parc-manual{
+    grid-column:1/-1;
+    display:none;
+    background:var(--paper);
+    border:1px dashed var(--line);
+    border-radius:4px;
+    padding:10px;
+  }
+  .parc-manual.show{display:block;}
+  .parc-manual .titulo{font-size:0.65rem;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);font-weight:600;margin-bottom:8px;}
+  .parc-row{display:grid;grid-template-columns:38px 1fr 1.25fr;gap:8px;align-items:center;margin-bottom:8px;}
+  .parc-row .n{font-family:'Space Mono',monospace;font-size:0.8rem;font-weight:700;color:var(--ink-soft);}
+  .parc-row input{
+    font-family:'Space Mono',monospace;
+    font-size:0.9rem;
+    padding:8px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    background:var(--paper-2);
+    color:var(--ink);
+    width:100%;
+    min-width:0;
+  }
+  .parc-resumo{font-family:'Space Mono',monospace;font-size:0.78rem;font-weight:700;margin-top:4px;color:var(--ink-soft);}
+  .parc-resumo.ok{color:var(--paid-green);}
+  .parc-resumo.erro{color:var(--debt-red);}
+  .field.nparc{display:none;}
+  .field.nparc.show{display:flex;}
 
   .col-nome{font-weight:600;font-size:1rem;}
   .col-nome .sub{
@@ -352,10 +440,21 @@
       <label for="inData">Data do empréstimo</label>
       <input id="inData" type="date">
     </div>
+    <div class="field parcelado">
+      <label class="check-linha" for="inParcelado">
+        <input id="inParcelado" type="checkbox">
+        Pagamento parcelado?
+      </label>
+    </div>
+    <div class="field nparc" id="boxNParc">
+      <label for="inParcelas">Nº de parcelas</label>
+      <input id="inParcelas" type="number" inputmode="numeric" min="2" max="60" step="1" value="2">
+    </div>
     <div class="field">
-      <label for="inValidade">Vence em</label>
+      <label for="inValidade" id="lblValidade">Vence em</label>
       <input id="inValidade" type="date">
     </div>
+    <div class="parc-manual" id="boxParcManual"></div>
     <div class="field obs">
       <label for="inObs">Observação (opcional)</label>
       <input id="inObs" type="text" placeholder="Ex: perdeu o emprego, prometeu pagar dia 10..." autocomplete="off">
@@ -449,6 +548,37 @@ function somarDias(iso, dias){
   return d.toISOString().slice(0,10);
 }
 
+function somarMeses(iso, n){
+  const [y,m,d] = iso.split('-').map(Number);
+  const alvo = new Date(y, (m-1)+n, 1);
+  const ultimo = new Date(alvo.getFullYear(), alvo.getMonth()+1, 0).getDate();
+  const dia = Math.min(d, ultimo);
+  const mm = String(alvo.getMonth()+1).padStart(2,'0');
+  const dd = String(dia).padStart(2,'0');
+  return `${alvo.getFullYear()}-${mm}-${dd}`;
+}
+
+// Parcelas: o dono define o valor e a data de cada uma. l.parcelas = [{valor, venc}, ...] (vazio quando não é parcelado).
+function acumuladoAte(l, k){
+  const ps = l.parcelas || [];
+  if(ps.length < 2 || k >= ps.length) return l.valorEmprestado;
+  let t = 0;
+  for(let i = 0; i < k; i++) t += ps[i].valor;
+  return Math.round(t * 100) / 100;
+}
+function parcelasPagas(l){
+  const ps = l.parcelas || [];
+  if(ps.length < 2) return 0;
+  let k = 0;
+  while(k < ps.length && l.valorPago + 0.004 >= acumuladoAte(l, k+1)) k++;
+  return k;
+}
+function proximoVencimento(l){
+  const ps = l.parcelas || [];
+  if(ps.length > 1) return ps[Math.min(parcelasPagas(l), ps.length-1)].venc;
+  return l.vencimento;
+}
+
 function diasDesde(iso){
   const then = new Date(iso + 'T00:00:00');
   const now = new Date();
@@ -466,11 +596,35 @@ function normalizarLancamento(d){
   const data = (typeof d.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.data)) ? d.data : hojeISO();
   const vencimento = (typeof d.vencimento === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.vencimento)) ? d.vencimento : somarDias(data, 30);
   const valorPago = Number(d.valorPago);
+  const ISO = /^\d{4}-\d{2}-\d{2}$/;
+  let parcelas = [];
+  if(Array.isArray(d.parcelas)){
+    parcelas = d.parcelas.slice(0, 60).map(p => ({
+      valor: Math.round(Number(p && p.valor) * 100) / 100,
+      venc: (p && typeof p.venc === 'string' && ISO.test(p.venc)) ? p.venc : null
+    }));
+    if(parcelas.some(p => !(p.valor > 0))) parcelas = [];
+    parcelas.forEach((p, idx) => { if(!p.venc) p.venc = somarMeses(vencimento, idx); });
+  }else{
+    // formato antigo (só o número de parcelas): divide igualmente uma única vez para não perder o lançamento
+    const n = parseInt(d.parcelas, 10);
+    if(n > 1 && n <= 60){
+      const total = Math.round(valorEmprestado * 100) / 100;
+      const base = Math.floor(total / n * 100) / 100;
+      for(let i = 0; i < n; i++){
+        const valor = i < n-1 ? base : Math.round((total - base*(n-1)) * 100) / 100;
+        parcelas.push({valor, venc: somarMeses(vencimento, i)});
+      }
+    }
+  }
+  if(parcelas.length < 2) parcelas = [];
+  const vencFinal = parcelas.length ? parcelas[0].venc : vencimento;
   return {
     id: (typeof d.id === 'string' && d.id) ? d.id : uid(),
     nome,
     data,
-    vencimento,
+    vencimento: vencFinal,
+    parcelas,
     valorEmprestado: Math.round(valorEmprestado*100)/100,
     valorPago: Math.round((isNaN(valorPago) ? 0 : valorPago)*100)/100,
     observacao: typeof d.observacao === 'string' ? d.observacao : ''
@@ -603,6 +757,21 @@ function restaurarBackup(file){
   reader.readAsText(file);
 }
 
+const parcelasAbertas = new Set();
+
+function chaveNome(n){ return n.trim().toLocaleLowerCase('pt-BR'); }
+
+function infoLancamento(l){
+  const saldo = Math.round((l.valorEmprestado - l.valorPago)*100)/100;
+  const quitado = saldo <= 0.004;
+  const parcelado = (l.parcelas || []).length > 1;
+  const pagas = parcelado ? parcelasPagas(l) : 0;
+  const prox = proximoVencimento(l);
+  const diasParaVencer = -diasDesde(prox);
+  const atrasado = !quitado && diasParaVencer < 0;
+  return {saldo, quitado, parcelado, pagas, prox, diasParaVencer, atrasado};
+}
+
 function render(){
   const container = document.getElementById('entries');
   const emptyMsg = document.getElementById('emptyMsg');
@@ -615,76 +784,134 @@ function render(){
   }
   emptyMsg.style.display = 'none';
 
-  const ordenado = [...lancamentos].sort((a,b)=>{
-    const saldoA = a.valorEmprestado - a.valorPago;
-    const saldoB = b.valorEmprestado - b.valorPago;
-    const atrasadoA = saldoA > 0.004 && diasDesde(a.vencimento) >= 0;
-    const atrasadoB = saldoB > 0.004 && diasDesde(b.vencimento) >= 0;
-    if(atrasadoA !== atrasadoB) return atrasadoA ? -1 : 1;
-    if((saldoA>0.004) !== (saldoB>0.004)) return saldoA>0.004 ? -1 : 1;
-    return new Date(a.vencimento) - new Date(b.vencimento);
+  // Agrupa por pessoa (ignora maiúsculas/minúsculas e espaços nas pontas)
+  const mapa = new Map();
+  lancamentos.forEach(l => {
+    const k = chaveNome(l.nome);
+    if(!mapa.has(k)) mapa.set(k, {nome: l.nome.trim(), itens: []});
+    mapa.get(k).itens.push({l, i: infoLancamento(l)});
+  });
+
+  const ordenarItens = (a,b)=>{
+    if(a.i.atrasado !== b.i.atrasado) return a.i.atrasado ? -1 : 1;
+    if(a.i.quitado !== b.i.quitado) return a.i.quitado ? 1 : -1;
+    return new Date(a.i.prox) - new Date(b.i.prox);
+  };
+
+  const grupos = [...mapa.values()];
+  grupos.forEach(g => {
+    g.itens.sort(ordenarItens);
+    g.saldo = g.itens.reduce((t,x)=> t + (x.i.quitado ? 0 : x.i.saldo), 0);
+    g.atrasado = g.itens.some(x=>x.i.atrasado);
+    g.quitado = g.itens.every(x=>x.i.quitado);
+    const abertos = g.itens.filter(x=>!x.i.quitado);
+    g.prox = abertos.length ? abertos.map(x=>x.i.prox).sort()[0] : '9999-12-31';
+  });
+  grupos.sort((a,b)=>{
+    if(a.atrasado !== b.atrasado) return a.atrasado ? -1 : 1;
+    if(a.quitado !== b.quitado) return a.quitado ? 1 : -1;
+    return new Date(a.prox) - new Date(b.prox);
   });
 
   let totalGeral = 0;
 
-  ordenado.forEach(l => {
-    const saldo = Math.round((l.valorEmprestado - l.valorPago)*100)/100;
-    const quitado = saldo <= 0.004;
-    const diasParaVencer = -diasDesde(l.vencimento);
-    const atrasado = !quitado && diasParaVencer < 0;
-    if(!quitado) totalGeral += saldo;
+  grupos.forEach(g => {
+    totalGeral += g.saldo;
+    const card = document.createElement('div');
+    card.className = 'grupo';
 
-    let statusTexto;
-    if(quitado){
-      statusTexto = 'quitado';
-    }else if(diasParaVencer === 0){
-      statusTexto = 'vence hoje';
-    }else if(diasParaVencer > 0){
-      statusTexto = `vence em ${diasParaVencer} dia${diasParaVencer===1?'':'s'}`;
-    }else{
-      const atraso = Math.abs(diasParaVencer);
-      statusTexto = `venceu há ${atraso} dia${atraso===1?'':'s'}`;
-    }
+    const qtd = g.itens.length;
+    card.innerHTML = `
+      <div class="grupo-head">
+        <div><span class="gn">${escapeHtml(g.nome)}</span>${qtd>1 ? `<span class="gq">${qtd} empréstimos</span>` : ''}</div>
+        <div class="gt ${g.quitado?'ok':''}">${g.quitado ? 'quitado' : fmtMoeda(Math.round(g.saldo*100)/100)}</div>
+      </div>`;
 
-    const row = document.createElement('div');
-    row.className = 'entry' + (quitado ? ' quitado' : '') + (atrasado ? ' atrasado' : '');
+    g.itens.forEach(({l, i}) => {
+      let statusTexto;
+      const prefixo = i.parcelado && !i.quitado ? `parcela ${i.pagas+1}/${l.parcelas.length} · ` : '';
+      if(i.quitado){
+        statusTexto = 'quitado';
+      }else if(i.diasParaVencer === 0){
+        statusTexto = prefixo + 'vence hoje';
+      }else if(i.diasParaVencer > 0){
+        statusTexto = `${prefixo}vence em ${i.diasParaVencer} dia${i.diasParaVencer===1?'':'s'}`;
+      }else{
+        const atraso = Math.abs(i.diasParaVencer);
+        statusTexto = `${prefixo}venceu há ${atraso} dia${atraso===1?'':'s'}`;
+      }
 
-    if(atrasado){
-      const stamp = document.createElement('div');
-      stamp.className = 'stamp';
-      stamp.textContent = 'COBRAR';
-      row.appendChild(stamp);
-    }
+      const row = document.createElement('div');
+      row.className = 'entry' + (i.quitado ? ' quitado' : '') + (i.atrasado ? ' atrasado' : '');
 
-    row.innerHTML += `
-      <div class="col-nome">${escapeHtml(l.nome)}
-        <span class="sub">${statusTexto}</span>
-        ${l.observacao ? `<span class="obs-texto">"${escapeHtml(l.observacao)}"</span>` : ''}
-      </div>
-      <div class="col-num"><span class="k">Emprestado</span>${fmtMoeda(l.valorEmprestado)}</div>
-      <div class="col-num"><span class="k">Pago</span>${fmtMoeda(l.valorPago)}</div>
-      <div class="col-num"><span class="k">Saldo</span><span class="${quitado?'saldo-quitado':'saldo-devedor'}">${fmtMoeda(saldo)}</span></div>
-      <div class="col-acoes" data-id="${l.id}">
-        ${quitado ? '' : `
-          <button class="btn btn-pay" data-action="abrir-pagamento">+ pagamento</button>
-          <span class="pay-input" data-role="pay-box">
-            <input type="number" step="0.01" min="0" placeholder="valor">
-            <button class="btn btn-primary" data-action="confirmar-pagamento" style="padding:6px 10px;font-size:0.75rem;">ok</button>
-          </span>
-          <button class="btn btn-ghost" data-action="quitar">quitar</button>
-        `}
-        <button class="btn btn-danger" data-action="apagar">apagar</button>
-      </div>
-    `;
-    container.appendChild(row);
+      if(i.atrasado){
+        const stamp = document.createElement('div');
+        stamp.className = 'stamp';
+        stamp.textContent = 'COBRAR';
+        row.appendChild(stamp);
+      }
+
+      const restantes = i.parcelado ? l.parcelas.length - i.pagas : 0;
+      const aberto = parcelasAbertas.has(l.id);
+      const chip = (i.parcelado && !i.quitado)
+        ? `<button class="parc-chip ${aberto?'aberto':''}" data-toggle-parcelas="${l.id}" aria-expanded="${aberto}">▦ ${restantes} parcela${restantes===1?'':'s'} faltando</button>`
+        : '';
+
+      let listaParcelas = '';
+      if(i.parcelado && !i.quitado){
+        let linhas = '';
+        for(let n = i.pagas+1; n <= l.parcelas.length; n++){
+          const venc = l.parcelas[n-1].venc;
+          const valor = l.parcelas[n-1].valor;
+          const vencida = diasDesde(venc) > 0;
+          linhas += `<div class="linha ${n===i.pagas+1?'prox':''} ${vencida?'venc':''}"><span>${n}/${l.parcelas.length} · ${fmtDataBR(venc)}</span><span>${fmtMoeda(valor)}</span></div>`;
+        }
+        listaParcelas = `<div class="parcelas-box ${aberto?'open':''}" data-box-parcelas="${l.id}"><div class="titulo">Parcelas que faltam</div>${linhas}</div>`;
+      }
+
+      row.innerHTML += `
+        <div class="col-nome">
+          <span class="sub" style="margin-top:0;">${statusTexto}</span>
+          <span class="sub">emprestado em ${fmtDataBR(l.data)}</span>
+          ${l.observacao ? `<span class="obs-texto">"${escapeHtml(l.observacao)}"</span>` : ''}
+          ${chip}
+        </div>
+        <div class="col-num"><span class="k">Emprestado</span>${fmtMoeda(l.valorEmprestado)}</div>
+        <div class="col-num"><span class="k">Pago</span>${fmtMoeda(l.valorPago)}</div>
+        <div class="col-num"><span class="k">Saldo</span><span class="${i.quitado?'saldo-quitado':'saldo-devedor'}">${fmtMoeda(i.saldo)}</span></div>
+        <div class="col-acoes" data-id="${l.id}">
+          ${i.quitado ? '' : `
+            ${i.parcelado ? '<button class="btn btn-pay" data-action="pagar-parcela">pagar parcela</button>' : ''}
+            <button class="btn ${i.parcelado ? 'btn-ghost' : 'btn-pay'}" data-action="abrir-pagamento">+ pagamento</button>
+            <span class="pay-input" data-role="pay-box">
+              <input type="number" step="0.01" min="0" placeholder="valor">
+              <button class="btn btn-primary" data-action="confirmar-pagamento" style="padding:6px 10px;font-size:0.75rem;">ok</button>
+            </span>
+            <button class="btn btn-ghost" data-action="quitar">quitar</button>
+          `}
+          <button class="btn btn-danger" data-action="apagar">apagar</button>
+        </div>
+        ${listaParcelas}
+      `;
+      card.appendChild(row);
+    });
+
+    container.appendChild(card);
   });
 
-  document.getElementById('totalGeral').textContent = fmtMoeda(totalGeral);
+  document.getElementById('totalGeral').textContent = fmtMoeda(Math.round(totalGeral*100)/100);
 
   container.querySelectorAll('.col-acoes').forEach(box=>{
     const id = box.getAttribute('data-id');
     box.querySelectorAll('button').forEach(btn=>{
       btn.addEventListener('click', ()=>handleAction(id, btn.getAttribute('data-action'), box));
+    });
+  });
+  container.querySelectorAll('[data-toggle-parcelas]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-toggle-parcelas');
+      if(parcelasAbertas.has(id)) parcelasAbertas.delete(id); else parcelasAbertas.add(id);
+      render();
     });
   });
 }
@@ -710,6 +937,15 @@ function handleAction(id, action, box){
     const val = parseFloat(payBox.querySelector('input').value.replace(',','.'));
     if(!isNaN(val) && val > 0){
       item.valorPago = Math.round((item.valorPago + val)*100)/100;
+      salvar();
+      render();
+    }
+    return;
+  }
+  if(action === 'pagar-parcela'){
+    const pagas = parcelasPagas(item);
+    if(pagas < (item.parcelas || []).length){
+      item.valorPago = acumuladoAte(item, pagas+1);
       salvar();
       render();
     }
@@ -742,6 +978,77 @@ document.getElementById('inData').addEventListener('change', ()=>{
   }
 });
 
+const boxParc = document.getElementById('boxParcManual');
+
+function lerLinhasParcelas(){
+  return [...boxParc.querySelectorAll('.parc-row')].map(r => ({
+    valor: r.querySelector('.pv').value,
+    venc: r.querySelector('.pd').value,
+    tocada: r.querySelector('.pd').dataset.touched === 'true'
+  }));
+}
+
+function atualizarResumoParcelas(){
+  const el = document.getElementById('parcResumo');
+  if(!el) return;
+  const total = parseFloat(document.getElementById('inValor').value.replace(',','.')) || 0;
+  const soma = lerLinhasParcelas().reduce((t,p) => t + (parseFloat(String(p.valor).replace(',','.')) || 0), 0);
+  const dif = Math.round((total - soma) * 100) / 100;
+  let txt = `Soma das parcelas: ${fmtMoeda(Math.round(soma*100)/100)}`;
+  let cls = '';
+  if(total > 0){
+    if(Math.abs(dif) < 0.005){ txt += ' · confere com o valor ✓'; cls = 'ok'; }
+    else if(dif > 0){ txt += ` · faltam ${fmtMoeda(dif)} para fechar ${fmtMoeda(total)}`; cls = 'erro'; }
+    else { txt += ` · passou ${fmtMoeda(-dif)} de ${fmtMoeda(total)}`; cls = 'erro'; }
+  }
+  el.textContent = txt;
+  el.className = 'parc-resumo ' + cls;
+}
+
+// Monta as linhas que o dono preenche à mão (valor e data de cada parcela). Mantém o que já foi digitado.
+function montarLinhasParcelas(){
+  if(!document.getElementById('inParcelado').checked){
+    boxParc.classList.remove('show');
+    boxParc.innerHTML = '';
+    return;
+  }
+  let n = parseInt(document.getElementById('inParcelas').value, 10);
+  if(isNaN(n) || n < 2) n = 2;
+  if(n > 60) n = 60;
+  const antigas = lerLinhasParcelas();
+  const primeira = document.getElementById('inValidade').value || somarDias(hojeISO(), 30);
+
+  let html = '<div class="titulo">Defina o valor e a data de cada parcela</div>';
+  for(let i = 0; i < n; i++){
+    const ant = antigas[i];
+    const valor = ant ? ant.valor : '';
+    const venc = (ant && ant.tocada && ant.venc) ? ant.venc : somarMeses(primeira, i);
+    html += `<div class="parc-row">
+      <span class="n">${i+1}ª</span>
+      <input class="pv" type="number" inputmode="decimal" step="0.01" min="0" placeholder="valor" value="${valor}">
+      <input class="pd" type="date" value="${venc}" ${ant && ant.tocada ? 'data-touched="true"' : ''}>
+    </div>`;
+  }
+  html += '<div class="parc-resumo" id="parcResumo"></div>';
+  boxParc.innerHTML = html;
+  boxParc.classList.add('show');
+
+  boxParc.querySelectorAll('.pv').forEach(inp => inp.addEventListener('input', atualizarResumoParcelas));
+  boxParc.querySelectorAll('.pd').forEach(inp => inp.addEventListener('input', () => { inp.dataset.touched = 'true'; }));
+  atualizarResumoParcelas();
+}
+
+function atualizarCamposParcela(){
+  const on = document.getElementById('inParcelado').checked;
+  document.getElementById('boxNParc').classList.toggle('show', on);
+  document.getElementById('lblValidade').textContent = on ? '1ª parcela vence em' : 'Vence em';
+  montarLinhasParcelas();
+}
+document.getElementById('inParcelado').addEventListener('change', atualizarCamposParcela);
+document.getElementById('inParcelas').addEventListener('input', montarLinhasParcelas);
+document.getElementById('inValidade').addEventListener('change', montarLinhasParcelas);
+document.getElementById('inValor').addEventListener('input', atualizarResumoParcelas);
+
 document.getElementById('btnAdd').addEventListener('click', ()=>{
   const nome = document.getElementById('inNome').value.trim();
   const valor = parseFloat(document.getElementById('inValor').value.replace(',','.'));
@@ -752,11 +1059,43 @@ document.getElementById('btnAdd').addEventListener('click', ()=>{
   if(!nome){ document.getElementById('inNome').focus(); return; }
   if(isNaN(valor) || valor <= 0){ document.getElementById('inValor').focus(); return; }
 
+  let parcelas = [];
+  if(document.getElementById('inParcelado').checked){
+    const n = parseInt(document.getElementById('inParcelas').value, 10);
+    if(isNaN(n) || n < 2 || n > 60){
+      alert('Informe de 2 a 60 parcelas.');
+      document.getElementById('inParcelas').focus();
+      return;
+    }
+    const linhas = lerLinhasParcelas();
+    for(let i = 0; i < linhas.length; i++){
+      const v = parseFloat(String(linhas[i].valor).replace(',','.'));
+      if(isNaN(v) || v <= 0){
+        alert(`Preencha o valor da ${i+1}ª parcela.`);
+        boxParc.querySelectorAll('.pv')[i].focus();
+        return;
+      }
+      if(!linhas[i].venc){
+        alert(`Escolha a data da ${i+1}ª parcela.`);
+        boxParc.querySelectorAll('.pd')[i].focus();
+        return;
+      }
+      parcelas.push({valor: Math.round(v*100)/100, venc: linhas[i].venc});
+    }
+    const soma = Math.round(parcelas.reduce((t,p) => t + p.valor, 0) * 100) / 100;
+    if(Math.abs(soma - Math.round(valor*100)/100) >= 0.005){
+      alert(`A soma das parcelas (${fmtMoeda(soma)}) precisa bater com o valor (${fmtMoeda(valor)}).`);
+      return;
+    }
+    vencimento = parcelas[0].venc;
+  }
+
   lancamentos.push({
     id: uid(),
     nome,
     data,
     vencimento,
+    parcelas,
     valorEmprestado: Math.round(valor*100)/100,
     valorPago: 0,
     observacao
@@ -768,6 +1107,9 @@ document.getElementById('btnAdd').addEventListener('click', ()=>{
   document.getElementById('inValidade').value = somarDias(hojeISO(), 30);
   document.getElementById('inValidade').dataset.touched = 'false';
   document.getElementById('inObs').value = '';
+  document.getElementById('inParcelado').checked = false;
+  document.getElementById('inParcelas').value = 2;
+  atualizarCamposParcela();
   document.getElementById('inNome').focus();
 
   salvar();
@@ -905,6 +1247,7 @@ calcOverlay.addEventListener('click', (e)=>{
 document.getElementById('calcUsarValor').addEventListener('click', ()=>{
   const valorFinal = Math.abs(parseFloat(calcAtual) || 0);
   document.getElementById('inValor').value = valorFinal.toFixed(2);
+  document.getElementById('inValor').dispatchEvent(new Event('input'));
   calcOverlay.hidden = true;
   document.getElementById('inValor').focus();
 });

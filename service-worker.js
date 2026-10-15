@@ -2,7 +2,7 @@
 // Só cuida de deixar o app abrindo offline depois da primeira visita.
 // NÃO guarda nem transmite os dados dos lançamentos — isso continua só no localStorage do aparelho.
 
-const CACHE_NAME = 'caderno-do-devedor-v1';
+const CACHE_NAME = 'caderno-do-devedor-v2';
 const ARQUIVOS_ESSENCIAIS = [
   './',
   './index.html',
